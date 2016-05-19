@@ -78,7 +78,7 @@ trait DownloadModx
      *
      * @param $package
      */
-    protected function unzip($package, $version, $advanced)
+    protected function unzip($package, $version, $advanced = '-traditional')
     {
         $this->output->writeln("Extracting package...");
 
