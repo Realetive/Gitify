@@ -67,7 +67,7 @@ class InstallModxCommand extends BaseCommand
         }
 
         // Create the XML config
-        $config = $this->createMODXConfig();
+        $config = $this->createMODXConfig($advanced);
 
         // Variables for running the setup
         $tz = date_default_timezone_get();
@@ -89,8 +89,10 @@ class InstallModxCommand extends BaseCommand
 
     /**
      * Asks the user to complete a bunch of details and creates a MODX CLI config xml file
+     *
+     * @param bool $advanced
      */
-    protected function createMODXConfig()
+    protected function createMODXConfig($advanced = false)
     {
         $directory = GITIFY_WORKING_DIR;
 
@@ -98,16 +100,14 @@ class InstallModxCommand extends BaseCommand
         $this->output->writeln("Please complete following details to install MODX. Leave empty to use the [default].");
 
         $helper = $this->getHelper('question');
-        $advanced = false;
         $dbType = 'mysql';
-        $dbHost = 'localhost'
+        $dbHost = 'localhost';
         $dbUser = 'root';
         $dbPass = '';
         $dbConnectionCharset = 'utf8';
         $dbCharset = 'utf8';
         $dbCollation = 'utf8_general_ci';
         $dbTablePrefix = 'modx_';
-
 
         do {
             if ($advanced) {
@@ -119,27 +119,10 @@ class InstallModxCommand extends BaseCommand
                 $question->setErrorMessage('MODX don\'t support %s database.');
                 $dbType = $helper->ask($this->input, $this->output, $question);
 
+
                 $question = new Question("Database host [{$dbHost}]: ", $dbHost);
                 $dbHost = $helper->ask($this->input, $this->output, $question);
-            }
-            $defaultDbName = basename(GITIFY_WORKING_DIR);
-            $question = new Question("Database Name [{$defaultDbName}]: ", $defaultDbName);
-            $dbName = $helper->ask($this->input, $this->output, $question);
 
-            $question = new Question('Database User [root]: ', 'root');
-            $dbUser = $helper->ask($this->input, $this->output, $question);
-
-            $question = new Question('Database Password: ');
-            $question->setHidden(true);
-            $dbPass = $helper->ask($this->input, $this->output, $question);
-
-            if (!$advanced && !mysql_connect($dbHost, $dbUser, $dbPass)) {
-                $this->output->writeln("Cann't connect to localhost as {$dbUser}.");
-                $question = new ConfirmationQuestion('Would you like to activate <info>Advanced Mode Installation</info>? <comment>(Y/n)</comment>', true);
-                if ($helper->ask($input, $output, $question)) {
-                    $advanced = true;
-                }
-            } elseif ($advanced) {
                 $question = new ChoiceQuestion(
                     'Database connection charset [utf8]: ',
                     array('armscii8', 'ascii'  , 'big5'  , 'binary' , 'cp1250', 'cp1251'  ,
@@ -223,12 +206,35 @@ class InstallModxCommand extends BaseCommand
                           'utf8mb4_persian_ci'      , 'utf8mb4_polish_ci'  , 'utf8mb4_roman_ci'     ,
                           'utf8mb4_romanian_ci'     , 'utf8mb4_sinhala_ci' , 'utf8mb4_slovak_ci'    ,
                           'utf8mb4_slovenian_ci'    , 'utf8mb4_spanish2_ci', 'utf8mb4_spanish_ci'   ,
-                          'utf8mb4_swedish_ci'      , 'utf8mb4_turkish_ci' , 'utf8mb4_unicode_ci'),
+                          'utf8mb4_swedish_ci'      , 'utf8mb4_turkish_ci' , 'utf8mb4_unicode_ci'   ),
                     'utf8_general_ci');
                 $dbCollation = $helper->ask($this->input, $this->output, $question);
 
                 $question = new Question('Database connection charset [_modx]: ', '_modx');
                 $dbTablePrefix = $helper->ask($this->input, $this->output, $question);
+            }
+            $defaultDbName = basename(GITIFY_WORKING_DIR);
+            $question = new Question("Database Name [{$defaultDbName}]: ", $defaultDbName);
+            $dbName = $helper->ask($this->input, $this->output, $question);
+
+            $question = new Question('Database User [root]: ', 'root');
+            $dbUser = $helper->ask($this->input, $this->output, $question);
+
+            $question = new Question('Database Password: ');
+            $question->setHidden(true);
+            $dbPass = $helper->ask($this->input, $this->output, $question);
+
+            try {
+                $pdoHost = $dbType = 'mysql' ? 'mysql:host' : 'sqlsrv:server';
+                $dbConnection = new PDO("{$pdoHost}={$dbHost}", $dbUser, $dbPass, array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION));
+            } catch (PDOException $e) {
+                $this->output->writeln("Cann't connect to localhost as {$dbUser}: " . $e->getMessage());
+                if (!$advanced) {
+                  $question = new ConfirmationQuestion('Would you like to activate <info>Advanced Mode Installation</info>? <comment>(Y/n)</comment>', true);
+                  if ($helper->ask($input, $output, $question)) {
+                    $advanced = true;
+                  }
+                }
             }
         } while (!mysql_connect($dbHost, $dbUser, $dbPass));
 
