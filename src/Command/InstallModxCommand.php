@@ -40,6 +40,12 @@ class InstallModxCommand extends BaseCommand
                 'd',
                 InputOption::VALUE_NONE,
                 'Force download the MODX package even if it already exists in the cache folder.'
+            )
+            ->addOption(
+                'advanced',
+                'a',
+                InputOption::VALUE_NONE,
+                'Download advanced type of installation (with choose of CORE_PATH and etc.).'
             );
     }
 
@@ -54,8 +60,9 @@ class InstallModxCommand extends BaseCommand
     {
         $version = $this->input->getArgument('version');
         $forced = $this->input->getOption('download');
+        $advanced = $this->input->getOption('advanced');
 
-        if (!$this->getMODX($version, $forced)) {
+        if (!$this->getMODX($version, $forced, $advanced)) {
             return 1; // exit
         }
 

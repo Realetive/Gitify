@@ -13,10 +13,12 @@ trait DownloadModx
      *
      * @param string $version
      * @param bool $download
+     * @param bool $advanced
      * @return bool
      */
-    protected function getMODX($version = 'latest', $download = false)
+    protected function getMODX($version = 'latest', $download = false, $advanced = false)
     {
+        $advanced = $advanced ? '-advanced' : false;
         if ($version === 'latest') {
             $this->output->writeln('Looking up latest MODX version...');
             $link = $this->fetchUrl($version);
@@ -27,13 +29,13 @@ trait DownloadModx
         // Force download the MODX package
         if ($download) {
             $this->output->writeln('<comment>Ignoring local cache, downloading MODX package...</comment>');
-            if (!$this->download($version)) {
+            if (!$this->download($version, $advanced)) {
                 return false;
             }
         }
 
         // Copy the files from the local cache (and download version if necessary)
-        $this->retrieveFromCache($version);
+        $this->retrieveFromCache($version, $advanced);
 
         return true;
     }
@@ -42,20 +44,22 @@ trait DownloadModx
      * Downloads specified package to local storage
      *
      * @param $version
+     * @param $advanced
      * @return bool
      */
-    protected function download($version)
+    protected function download($version, $advanced)
     {
         $link = $this->fetchUrl($version);
 
+        $link = str_replace('.zip', $advanced ? "{$advanced}.zip" : ".zip", $link);
         if (!file_exists(GITIFY_CACHE_DIR)) {
             mkdir(GITIFY_CACHE_DIR);
         }
 
-        $this->removeOutdatedArchive($version); // remove old files
+        $this->removeOutdatedArchive($version, $advanced); // remove old files
 
-        $zip = GITIFY_CACHE_DIR . $version . '.zip';
-        $this->output->writeln("Downloading {$version} from {$link}...");
+        $zip = GITIFY_CACHE_DIR . $version . $advanced . '.zip';
+        $this->output->writeln("Downloading {$version}{$advanced} from {$link}...");
         exec("curl -Lo $zip $link -#");
 
         if (!file_exists($zip)) {
@@ -64,7 +68,7 @@ trait DownloadModx
             return false;
         }
 
-        $this->unzip($zip);
+        $this->unzip($zip, $version, $advanced);
 
         return true;
     }
@@ -74,12 +78,13 @@ trait DownloadModx
      *
      * @param $package
      */
-    protected function unzip($package)
+    protected function unzip($package, $version, $advanced)
     {
-        $this->output->writeln("Extracting package... ");
+        $this->output->writeln("Extracting package...");
 
         $destination = dirname($package);
         exec("unzip $package -d $destination");
+        exec("mv {$destination}/{$version} {$destination}/{$version}{$advanced}");
     }
 
     /**
@@ -95,8 +100,8 @@ trait DownloadModx
         }
         $version = str_replace('modx-', '', $version);
         $url = empty($version) || $version == 'latest'
-            ? 'http://modx.com/download/latest/'
-            : 'http://modx.com/download/direct/modx-' . $version . '.zip';
+            ? 'https://modx.com/download/latest/'
+            : 'https://modx.com/download/direct/modx-' . $version . '.zip';
 
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
@@ -120,15 +125,15 @@ trait DownloadModx
      *
      * @param $version
      */
-    protected function retrieveFromCache($version)
+    protected function retrieveFromCache($version, $advanced)
     {
         $version = 'modx-' . str_replace('modx-', '', $version);
 
 
-        $path = GITIFY_CACHE_DIR . $version;
+        $path = GITIFY_CACHE_DIR . $version . $advanced;
 
         if (!file_exists($path) || !is_dir($path)) {
-            $this->download($version);
+            $this->download($version, $advanced);
         }
 
         exec("cp -r $path/* ./");
@@ -139,9 +144,9 @@ trait DownloadModx
      *
      * @param $version
      */
-    protected function removeOutdatedArchive($version)
+    protected function removeOutdatedArchive($version, $advanced)
     {
-        $folder = GITIFY_CACHE_DIR . $version;
+        $folder = GITIFY_CACHE_DIR . $version . $advanced;
         $package = $folder . '.zip';
 
         exec("rm -rf $folder");
