@@ -230,7 +230,8 @@ class InstallModxCommand extends BaseCommand
 
             try {
                 $pdoHost = $dbType = 'mysql' ? 'mysql:host' : 'sqlsrv:server';
-                $dbConnection = new PDO("{$pdoHost}={$dbHost}", $dbUser, $dbPass, array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION));
+                use PDO;
+                $dbConnection = new \PDO("{$pdoHost}={$dbHost}", $dbUser, $dbPass, array(\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION));
             } catch (PDOException $e) {
                 $this->output->writeln("Cann't connect to localhost as {$dbUser}: " . $e->getMessage());
                 if (!$advanced) {
