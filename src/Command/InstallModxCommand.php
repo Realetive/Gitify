@@ -132,7 +132,7 @@ class InstallModxCommand extends BaseCommand
                       'latin1'  , 'latin2' , 'latin5', 'latin7' , 'macce' , 'macroman',
                       'sjis'    , 'swe7'   , 'tis620', 'ucs2'   , 'ujis'  , 'utf16'   ,
                       'utf32'   , 'utf8'   , 'utf8mb4'),
-                'utf8');
+                37);
             $question->setErrorMessage("MODX doesn't support %s as connection charset.");
             $dbConnectionCharset = $helper->ask($this->input, $this->output, $question);
 
@@ -205,14 +205,13 @@ class InstallModxCommand extends BaseCommand
                 'utf8mb4_persian_ci'      , 'utf8mb4_polish_ci'  , 'utf8mb4_roman_ci'     ,
                 'utf8mb4_romanian_ci'     , 'utf8mb4_sinhala_ci' , 'utf8mb4_slovak_ci'    ,
                 'utf8mb4_slovenian_ci'    , 'utf8mb4_spanish2_ci', 'utf8mb4_spanish_ci'   ,
-                'utf8mb4_swedish_ci'      , 'utf8mb4_turkish_ci' , 'utf8mb4_unicode_ci'   )
+                'utf8mb4_swedish_ci'      , 'utf8mb4_turkish_ci' , 'utf8mb4_unicode_ci'   );
             $question = new ChoiceQuestion(
                 'Database collation [utf8_general_ci]: ',
-                preg_grep("/^{$dbCharset}+$/", $dbCollationArray),
-                'utf8_general_ci');
+                preg_grep("/^{$dbCharset}/", $dbCollationArray));
             $dbCollation = $helper->ask($this->input, $this->output, $question);
 
-            $question = new Question('Database connection charset [_modx]: ', '_modx');
+            $question = new Question('Database table prefix [_modx]: ', '_modx');
             $dbTablePrefix = $helper->ask($this->input, $this->output, $question);
         }
 
@@ -294,7 +293,7 @@ class InstallModxCommand extends BaseCommand
             <https_port>443</https_port>
             <http_host>{$host}</http_host>
             <cache_disabled>0</cache_disabled>
-            <inplace>1</inplace>
+            <inplace>0</inplace>
             <unpacked>0</unpacked>
             <language>{$language}</language>
             <cmsadmin>{$managerUser}</cmsadmin>
