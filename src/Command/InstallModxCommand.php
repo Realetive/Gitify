@@ -109,6 +109,9 @@ class InstallModxCommand extends BaseCommand
         $dbCharset = 'utf8';
         $dbCollation = 'utf8_general_ci';
         $dbTablePrefix = 'modx_';
+        $assetsUrl = 'assets';
+        $corePath = $directory . 'core/';
+        $managerUrl = 'manager';
 
         if ($advanced) {
             $question = new ChoiceQuestion(
@@ -208,12 +211,22 @@ class InstallModxCommand extends BaseCommand
                 'utf8mb4_swedish_ci'      , 'utf8mb4_turkish_ci' , 'utf8mb4_unicode_ci'   );
             $question = new ChoiceQuestion(
                 'Database collation [utf8_general_ci]: ',
-                preg_grep("/^{$dbCharset}/", $dbCollationArray));
+                preg_grep("/^{$dbCharset}_/", $dbCollationArray));
             $dbCollation = $helper->ask($this->input, $this->output, $question);
 
             $question = new Question('Database table prefix [_modx]: ', '_modx');
             $dbTablePrefix = $helper->ask($this->input, $this->output, $question);
+
+            $question = new Question('Assets URL [' . $assetsUrl . ']: ', $assetsUrl);
+            $assetsUrl = $helper->ask($this->input, $this->output, $question);
+
+            $question = new Question('Manager URL [' . $managerUrl . ']: ', $managerUrl);
+            $managerUrl = $helper->ask($this->input, $this->output, $question);
+
+            $question = new Question('Connectors URL [' . $connectorsUrl . ']: ', $connectorsUrl);
+            $connectorsUrl = $helper->ask($this->input, $this->output, $question);
         }
+
 
         $dbConnection = false;
         do {
@@ -300,15 +313,19 @@ class InstallModxCommand extends BaseCommand
             <cmsadmin>{$managerUser}</cmsadmin>
             <cmspassword>{$managerPass}</cmspassword>
             <cmsadminemail>{$managerEmail}</cmsadminemail>
-            <core_path>{$directory}core/</core_path>
-            <context_mgr_path>{$directory}manager/</context_mgr_path>
-            <context_mgr_url>{$baseUrl}manager/</context_mgr_url>
-            <context_connectors_path>{$directory}connectors/</context_connectors_path>
-            <context_connectors_url>{$baseUrl}connectors/</context_connectors_url>
+            <core_path>{$corePath}</core_path>
+            <assets_path>{$directory}{$assetsUrl}/</assets_path>
+            <assets_url>{$baseUrl}{$assetsUrl}/</assets_url>
+            <context_mgr_path>{$directory}{$managerUrl}/</context_mgr_path>
+            <context_mgr_url>{$baseUrl}{$managerUrl}/</context_mgr_url>
+            <context_connectors_path>{$directory}{$connectorsUrl}/</context_connectors_path>
+            <context_connectors_url>{$baseUrl}{$connectorsUrl}/</context_connectors_url>
             <context_web_path>{$directory}</context_web_path>
             <context_web_url>{$baseUrl}</context_web_url>
             <remove_setup_directory>1</remove_setup_directory>
         </modx>";
+
+        echo $configXMLContents;
 
         $fh = fopen($directory . 'config.xml', "w+");
         fwrite($fh, $configXMLContents);
