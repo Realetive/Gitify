@@ -76,7 +76,7 @@ class InstallModxCommand extends BaseCommand
         $output->writeln("Running MODX Setup...");
 
         // Actually run the CLI setup
-        exec("php -d date.timezone={$tz} {$wd}setup/index.php --installmode=new --config={$config}", $setupOutput);
+        exec("php -d date.timezone={$tz} {$wd}setup/index.php --installmode=new --config={$config['path']} --core_path={$config['core']}", $setupOutput);
         $output->writeln("<comment>{$setupOutput[0]}</comment>");
 
         // Try to clean up the config file
@@ -112,6 +112,7 @@ class InstallModxCommand extends BaseCommand
         $assetsUrl = 'assets';
         $corePath = $directory . 'core/';
         $managerUrl = 'manager';
+        $connectorsUrl = 'connectors';
 
         if ($advanced) {
             $question = new ChoiceQuestion(
@@ -210,23 +211,34 @@ class InstallModxCommand extends BaseCommand
                 'utf8mb4_slovenian_ci'    , 'utf8mb4_spanish2_ci', 'utf8mb4_spanish_ci'   ,
                 'utf8mb4_swedish_ci'      , 'utf8mb4_turkish_ci' , 'utf8mb4_unicode_ci'   );
             $question = new ChoiceQuestion(
-                'Database collation [utf8_general_ci]: ',
-                preg_grep("/^{$dbCharset}_/", $dbCollationArray));
+                'Database collation [{$dbCollation}]: ',
+                preg_grep("/^{$dbCharset}_/", $dbCollationArray),
+                158);
             $dbCollation = $helper->ask($this->input, $this->output, $question);
 
-            $question = new Question('Database table prefix [_modx]: ', '_modx');
+            $question = new Question('Database table prefix [{$dbTablePrefix}]: ', $dbTablePrefix);
             $dbTablePrefix = $helper->ask($this->input, $this->output, $question);
 
-            $question = new Question('Assets URL [' . $assetsUrl . ']: ', $assetsUrl);
+            $question = new Question('Assets URL [{$assetsUrl}]: ', $assetsUrl);
             $assetsUrl = $helper->ask($this->input, $this->output, $question);
 
-            $question = new Question('Manager URL [' . $managerUrl . ']: ', $managerUrl);
+            $question = new Question('Manager URL [{$managerUrl}]: ', $managerUrl);
             $managerUrl = $helper->ask($this->input, $this->output, $question);
 
-            $question = new Question('Connectors URL [' . $connectorsUrl . ']: ', $connectorsUrl);
+            $question = new Question('Connectors URL [{$connectorsUrl}]: ', $connectorsUrl);
             $connectorsUrl = $helper->ask($this->input, $this->output, $question);
-        }
 
+            $question = new Question('Path to core directory [{$corePath}]: ', $corePath);
+            $corePath = $helper->ask($this->input, $this->output, $question);
+            if ($directory . 'core/' != $corePath) {
+                rename($directory . 'core/', $corePath);
+                exec ('find '.$corePath.' -type d -exec chmod 0755 {} +');
+                exec ('find '.$corePath.' -type f -exec chmod 0644 {} +');
+            }
+
+            $question = new Question('Save config to [{$directory}config.xml]: ', $directory.'.config.xml');
+            $configPath = $helper->ask($this->input, $this->output, $question);
+        }
 
         $dbConnection = false;
         do {
@@ -242,16 +254,16 @@ class InstallModxCommand extends BaseCommand
             $dbPass = $helper->ask($this->input, $this->output, $question);
 
             try {
-                $pdoHost = $dbType = 'mysql' ? 'mysql:host' : 'sqlsrv:server';
-                use PDO;
-                $dbConnection = new \PDO("{$pdoHost}={$dbHost}", $dbUser, $dbPass, array(\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION));
+                $pdoHost = $dbType == 'mysql' ? 'mysql:host' : 'sqlsrv:server';
+                $dbConnection = new \PDO("{$pdoHost}={$dbHost}", $dbUser, $dbPass, array(\PDO::ATTR_ERRMODE => \PDO::ERRMODE_SILENT));
+                $this->output->writeln('<info>Database connection success</info>');
             } catch (PDOException $e) {
-                $this->output->writeln("Cann't connect to localhost as {$dbUser}: " . $e->getMessage());
+                $this->output->writeln("<error>Cann't connect to localhost as {$dbUser}: " . $e->getMessage() . "</error>");
                 if (!$advanced) {
-                  $question = new ConfirmationQuestion('Would you like to activate <info>Advanced Mode Installation</info>? <comment>(Y/n)</comment>', true);
-                  if ($helper->ask($input, $output, $question)) {
-                    $advanced = true;
-                  }
+                    $question = new ConfirmationQuestion('Would you like to activate <info>Advanced Mode Installation</info>? <comment>(Y/n)</comment>', true);
+                    if ($helper->ask($input, $output, $question)) {
+                        $advanced = true;
+                    }
                 }
             }
         } while (!$dbConnection);
@@ -261,7 +273,7 @@ class InstallModxCommand extends BaseCommand
         $host = rtrim(trim($host), '/');
 
         $defaultBaseUrl = '/';
-        $question = new Question('Base URL [' . $defaultBaseUrl . ']: ', $defaultBaseUrl);
+        $question = new Question('Base URL [{$defaultBaseUrl}]: ', $defaultBaseUrl);
         $baseUrl = $helper->ask($this->input, $this->output, $question);
         $baseUrl = '/' . trim(trim($baseUrl), '/') . '/';
         $baseUrl = str_replace('//', '/', $baseUrl);
@@ -270,7 +282,7 @@ class InstallModxCommand extends BaseCommand
         $language = $helper->ask($this->input, $this->output, $question);
 
         $defaultMgrUser = basename(GITIFY_WORKING_DIR) . '_admin';
-        $question = new Question('Manager User [' . $defaultMgrUser . ']: ', $defaultMgrUser);
+        $question = new Question('Manager User [{$defaultMgrUser}]: ', $defaultMgrUser);
         $managerUser = $helper->ask($this->input, $this->output, $question);
 
         $question = new Question('Manager User Password [generated]: ', 'generate');
@@ -291,47 +303,42 @@ class InstallModxCommand extends BaseCommand
             $this->output->writeln("<info>Generated Manager Password: {$managerPass}</info>");
         }
 
-        $question = new Question('Manager Email: ');
+        $question = new Question('Manager Email: [{$managerUser}@{$host}]: ', $managerUser . '@' . $host);
         $managerEmail = $helper->ask($this->input, $this->output, $question);
 
         $configXMLContents = "<modx>
-            <database_type>{$dbType}</database_type>
-            <database_server>{$dbHost}</database_server>
-            <database>{$dbName}</database>
-            <database_user>{$dbUser}</database_user>
-            <database_password>{$dbPass}</database_password>
-            <database_connection_charset>{$dbConnectionCharset}</database_connection_charset>
-            <database_charset>{$dbCharset}</database_charset>
-            <database_collation>{$dbCollation}</database_collation>
-            <table_prefix>{$dbTablePrefix}</table_prefix>
-            <https_port>443</https_port>
-            <http_host>{$host}</http_host>
-            <cache_disabled>0</cache_disabled>
-            <inplace>0</inplace>
-            <unpacked>0</unpacked>
-            <language>{$language}</language>
-            <cmsadmin>{$managerUser}</cmsadmin>
-            <cmspassword>{$managerPass}</cmspassword>
-            <cmsadminemail>{$managerEmail}</cmsadminemail>
-            <core_path>{$corePath}</core_path>
-            <assets_path>{$directory}{$assetsUrl}/</assets_path>
-            <assets_url>{$baseUrl}{$assetsUrl}/</assets_url>
-            <context_mgr_path>{$directory}{$managerUrl}/</context_mgr_path>
-            <context_mgr_url>{$baseUrl}{$managerUrl}/</context_mgr_url>
-            <context_connectors_path>{$directory}{$connectorsUrl}/</context_connectors_path>
-            <context_connectors_url>{$baseUrl}{$connectorsUrl}/</context_connectors_url>
-            <context_web_path>{$directory}</context_web_path>
-            <context_web_url>{$baseUrl}</context_web_url>
-            <remove_setup_directory>1</remove_setup_directory>
-        </modx>";
+  <database_type>{$dbType}</database_type>
+  <database_server>{$dbHost}</database_server>
+  <database>{$dbName}</database>
+  <database_user>{$dbUser}</database_user>
+  <database_password>{$dbPass}</database_password>
+  <database_connection_charset>{$dbConnectionCharset}</database_connection_charset>
+  <database_charset>{$dbCharset}</database_charset>
+  <database_collation>{$dbCollation}</database_collation>
+  <table_prefix>{$dbTablePrefix}</table_prefix>
+  <https_port>443</https_port>
+  <http_host>{$host}</http_host>
+  <cache_disabled>1</cache_disabled>
+  <inplace>0</inplace>
+  <unpacked>0</unpacked>
+  <language>{$language}</language>
+  <cmsadmin>{$managerUser}</cmsadmin>
+  <cmspassword>{$managerPass}</cmspassword>
+  <cmsadminemail>{$managerEmail}</cmsadminemail>
+  <core_path>{$corePath}</core_path>
+  <assets_path>{$directory}{$assetsUrl}/</assets_path>
+  <assets_url>{$baseUrl}{$assetsUrl}/</assets_url>
+  <context_mgr_path>{$directory}{$managerUrl}/</context_mgr_path>
+  <context_mgr_url>{$baseUrl}{$managerUrl}/</context_mgr_url>
+  <context_connectors_path>{$directory}{$connectorsUrl}/</context_connectors_path>
+  <context_connectors_url>{$baseUrl}{$connectorsUrl}/</context_connectors_url>
+  <context_web_path>{$directory}</context_web_path>
+  <context_web_url>{$baseUrl}</context_web_url>
+  <remove_setup_directory>1</remove_setup_directory>
+</modx>";
 
-        echo $configXMLContents;
-
-        $fh = fopen($directory . 'config.xml', "w+");
-        fwrite($fh, $configXMLContents);
-        fclose($fh);
-
-        return $directory . 'config.xml';
+        file_put_contents($configPath, $configXMLContents);
+        return array('path' => $configPath, 'core' => $corePath);
     }
 
 }
